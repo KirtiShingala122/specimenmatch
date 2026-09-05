@@ -5,8 +5,9 @@ from typing import List
 
 from backend.database import engine, get_db, Base
 from backend.models import Patient, LabResult, ResolutionDecision, OutcomeEnum, TriggeredByEnum
-from backend.schemas import PatientRead, LabResultRead, ResolutionDecisionRead, ResolutionRequest
+from backend.schemas import PatientRead, LabResultRead, LabResultCreate, ResolutionDecisionRead, ResolutionRequest
 from backend.matching.decision_engine import resolve_identity
+import datetime
 
 # Ensure tables are created (just in case)
 Base.metadata.create_all(bind=engine)
@@ -32,7 +33,25 @@ def get_patients(db: Session = Depends(get_db)):
 @app.get("/lab-results", response_model=List[LabResultRead])
 def get_lab_results(db: Session = Depends(get_db)):
     """Return seeded synthetic lab results."""
-    return db.query(LabResult).all()
+    return db.query(LabResult).order_by(LabResult.submitted_at.desc()).all()
+
+
+@app.post("/lab-results", response_model=LabResultRead)
+def create_lab_result(request: LabResultCreate, db: Session = Depends(get_db)):
+    """Add a dynamic custom lab result to test the matching engine."""
+    import uuid
+    new_result = LabResult(
+        lab_result_id=str(uuid.uuid4()),
+        specimen_id=request.specimen_id,
+        lab_name=request.lab_name,
+        submitted_at=datetime.datetime.utcnow(),
+        raw_demographics=request.raw_demographics.dict(exclude_none=True),
+        result_data=request.result_data or {}
+    )
+    db.add(new_result)
+    db.commit()
+    db.refresh(new_result)
+    return new_result
 
 
 @app.get("/decisions", response_model=List[ResolutionDecisionRead])
