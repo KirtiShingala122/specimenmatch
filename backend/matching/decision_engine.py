@@ -19,14 +19,16 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
     """
     # 1. Extract and normalize signals for blocking
     norm_lname = normalizer.normalize_name(raw_demographics.get("last_name"))
-    norm_dob = normalizer.normalize_dob(raw_demographics.get("dob"))
+    raw_dob = raw_demographics.get("dob") or raw_demographics.get("date_of_birth")
+    norm_dob = normalizer.normalize_dob(raw_dob)
     norm_phone = normalizer.normalize_phone(raw_demographics.get("phone"))
 
     # 2. Generate candidates
     candidates = generate_candidates(db_session, norm_lname, norm_dob, norm_phone)
 
     if not candidates:
-        return _build_decision(OutcomeEnum.NO_MATCH, None, 0.0, None, 0.0, 0, {}, "No sufficiently similar candidate found")
+        empty_evidence = {"fields": {}, "top_candidates": []}
+        return _build_decision(OutcomeEnum.NO_MATCH, None, 0.0, None, 0.0, 0, empty_evidence, "No sufficiently similar candidate found")
 
     # 3. Score all candidates
     scored_candidates = []
@@ -54,6 +56,9 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
 
     candidate_count = len(scored_candidates)
 
+    # Build rich evidence breakdown adhering to EvidenceBreakdown schema
+    evidence_breakdown = _format_evidence_breakdown(best_match, scored_candidates)
+
     # 4. Evaluate Safety Rules
     # Rule A: Weak / No Evidence
     if best_score < REVIEW_THRESHOLD:
@@ -64,7 +69,7 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
             second_score, 
             margin, 
             candidate_count, 
-            best_match["field_scores"], 
+            evidence_breakdown, 
             "No candidate met the minimum review threshold."
         )
 
@@ -77,7 +82,7 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
             second_score, 
             margin, 
             candidate_count, 
-            best_match["field_scores"], 
+            evidence_breakdown, 
             "Two candidates have similar scores; manual review required."
         )
 
@@ -90,7 +95,7 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
             second_score, 
             margin, 
             candidate_count, 
-            best_match["field_scores"], 
+            evidence_breakdown, 
             "Candidate found but score is below auto-match confidence threshold."
         )
 
@@ -105,7 +110,7 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
                 second_score, 
                 margin, 
                 candidate_count, 
-                best_match["field_scores"], 
+                evidence_breakdown, 
                 "Score is high but based on insufficient data points (only 1 field)."
             )
 
@@ -116,7 +121,7 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
             second_score, 
             margin, 
             candidate_count, 
-            best_match["field_scores"], 
+            evidence_breakdown, 
             "Strong demographic agreement with clear candidate separation."
         )
 
@@ -128,9 +133,50 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
         second_score, 
         margin, 
         candidate_count, 
-        best_match["field_scores"], 
+        evidence_breakdown, 
         "Fallback review triggered."
     )
+
+
+def _format_evidence_breakdown(best_match: Optional[dict], scored_candidates: List[dict]) -> dict:
+    if not best_match:
+        return {"fields": {}, "top_candidates": []}
+
+    fields_evidence = {}
+    for field, fscore in best_match["field_scores"].items():
+        if field == "dob":
+            note = "Exact date of birth match" if fscore == 1.0 else "Date of birth mismatch"
+        elif field == "gender":
+            note = "Gender match" if fscore == 1.0 else "Gender mismatch"
+        elif field == "phone":
+            note = "Direct phone match" if fscore == 1.0 else f"Partial phone match ({int(fscore*100)}%)"
+        elif field in ("first_name", "last_name"):
+            note = "Exact match" if fscore == 1.0 else f"Fuzzy similarity ({int(fscore*100)}%)"
+        elif field == "address":
+            note = "Address match" if fscore == 1.0 else f"Fuzzy address match ({int(fscore*100)}%)"
+        else:
+            note = f"Field score: {round(fscore, 2)}"
+
+        fields_evidence[field] = {
+            "score": round(float(fscore), 3),
+            "note": note
+        }
+
+    top_candidates = []
+    for sc in scored_candidates[:5]:
+        cand = sc["candidate"]
+        hosp_name = cand.hospital.hospital_name if (getattr(cand, "hospital", None) and getattr(cand.hospital, "hospital_name", None)) else cand.hospital_id
+        top_candidates.append({
+            "patient_id": cand.patient_id,
+            "hospital_id": hosp_name,
+            "name": f"{cand.first_name} {cand.last_name}",
+            "score": round(float(sc["score"]), 3)
+        })
+
+    return {
+        "fields": fields_evidence,
+        "top_candidates": top_candidates
+    }
 
 
 def _build_decision(
@@ -140,7 +186,7 @@ def _build_decision(
     second_score: Optional[float],
     score_margin: Optional[float],
     candidate_count: int,
-    evidence_breakdown: Dict[str, float],
+    evidence_breakdown: dict,
     decision_reason: str
 ) -> dict:
     return {

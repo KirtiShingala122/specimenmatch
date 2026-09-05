@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from backend.database import engine, get_db, Base
-from backend.models import Patient, LabResult, ResolutionDecision, OutcomeEnum, TriggeredByEnum
-from backend.schemas import PatientRead, LabResultRead, LabResultCreate, ResolutionDecisionRead, ResolutionRequest
+from backend.models import Patient, LabResult, ResolutionDecision, OutcomeEnum, TriggeredByEnum, Hospital
+from backend.schemas import PatientRead, LabResultRead, LabResultCreate, ResolutionDecisionRead, ResolutionRequest, HospitalRead
 from backend.matching.decision_engine import resolve_identity
+from backend.seed.seed_data import reset_and_seed_db
 import datetime
 
 # Ensure tables are created (just in case)
@@ -24,10 +25,32 @@ app.add_middleware(
 )
 
 
+@app.get("/hospitals", response_model=List[HospitalRead])
+def get_hospitals(db: Session = Depends(get_db)):
+    """Return all participating hospitals."""
+    return db.query(Hospital).all()
+
+
 @app.get("/patients", response_model=List[PatientRead])
 def get_patients(db: Session = Depends(get_db)):
     """Return all synthetic patient records."""
     return db.query(Patient).all()
+
+
+@app.get("/patients/{patient_id}", response_model=PatientRead)
+def get_patient(patient_id: str, db: Session = Depends(get_db)):
+    """Return specific patient record by patient ID."""
+    patient = db.query(Patient).filter(Patient.patient_id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return patient
+
+
+@app.post("/seed")
+def seed_database(db: Session = Depends(get_db)):
+    """Reset and reseed database for interactive demo."""
+    reset_and_seed_db(db)
+    return {"message": "Database reset and seeded successfully"}
 
 
 @app.get("/lab-results", response_model=List[LabResultRead])

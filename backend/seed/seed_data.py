@@ -1,20 +1,35 @@
 import random
-from datetime import date, datetime
-from faker import Faker
+from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from backend.database import Base, engine, get_db
 from backend.models import GenderEnum, Hospital, LabResult, Patient
 
-fake = Faker("en_IN")
-Faker.seed(42)
 random.seed(42)
+
+FIRST_NAMES_MALE = ["Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan", "Krishna", "Ishaan", "Shaurya", "Atharva", "Rohan", "Kabir", "Aryan"]
+FIRST_NAMES_FEMALE = ["Diya", "Saanvi", "Ananya", "Aadhya", "Pari", "Chiara", "Riya", "Anushka", "Myra", "Ahana", "Avani", "Isha", "Kavya", "Tanvi", "Neha"]
+LAST_NAMES = ["Patel", "Shah", "Mehta", "Joshi", "Verma", "Gupta", "Deshmukh", "Choudhury", "Bose", "Nair", "Iyer", "Rao", "Reddy", "Menon", "Kapoor"]
+CITIES_DATA = [
+    ("Mumbai", "Maharashtra", "400001", "Park Street"),
+    ("Delhi", "Delhi", "110001", "Connaught Place"),
+    ("Bengaluru", "Karnataka", "560001", "MG Road"),
+    ("Hyderabad", "Telangana", "500001", "Banjara Hills"),
+    ("Ahmedabad", "Gujarat", "380001", "SG Highway"),
+    ("Chennai", "Tamil Nadu", "600001", "Anna Salai"),
+    ("Kolkata", "West Bengal", "700001", "Salt Lake"),
+    ("Pune", "Maharashtra", "411001", "FC Road"),
+    ("Jaipur", "Rajasthan", "302001", "MI Road"),
+    ("Gurgaon", "Haryana", "122001", "Cyber City"),
+]
 
 
 def reset_and_seed_db(session: Session = None):
+    bind = session.get_bind() if session is not None else engine
+    Base.metadata.drop_all(bind=bind)
+    Base.metadata.create_all(bind=bind)
+
     if session is None:
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
         db = next(get_db())
     else:
         db = session
@@ -86,10 +101,17 @@ def reset_and_seed_db(session: Session = None):
     for i in range(35):
         h = random.choice(all_hospitals)
         g = random.choice(genders)
-        first_name = fake.first_name_male() if g == GenderEnum.M else fake.first_name_female()
-        last_name = fake.last_name()
-        dob = fake.date_of_birth(minimum_age=18, maximum_age=80)
-        phone = fake.phone_number() if random.random() > 0.15 else None
+        first_name = random.choice(FIRST_NAMES_MALE) if g == GenderEnum.M else random.choice(FIRST_NAMES_FEMALE)
+        last_name = random.choice(LAST_NAMES)
+        
+        # Random DOB between 18 and 75 years ago
+        age_days = random.randint(18 * 365, 75 * 365)
+        dob = date.today() - timedelta(days=age_days)
+        phone = f"98{random.randint(10000000, 99999999)}" if random.random() > 0.15 else None
+        
+        city_info = random.choice(CITIES_DATA)
+        city_name, state_name, zip_str, street_name = city_info
+        bldg_no = random.randint(1, 400)
 
         p = Patient(
             hospital_id=h.hospital_id,
@@ -99,10 +121,10 @@ def reset_and_seed_db(session: Session = None):
             date_of_birth=dob,
             gender=g,
             phone=phone,
-            address_line1=fake.street_address(),
-            city=fake.city(),
-            state=fake.state(),
-            zip_code=fake.postcode(),
+            address_line1=f"{bldg_no} {street_name}",
+            city=city_name,
+            state=state_name,
+            zip_code=zip_str,
         )
         db.add(p)
 
@@ -116,6 +138,7 @@ def reset_and_seed_db(session: Session = None):
         raw_demographics={
             "first_name": "Rahul",
             "last_name": "K.",
+            "middle_name": "Dev",
             "dob": "12/04/1988",
             "gender": "Male",
             "phone": "+91 98765-43210",
@@ -154,7 +177,22 @@ def reset_and_seed_db(session: Session = None):
         result_data={"test_name": "Lipid Panel", "status": "Completed"},
     )
 
-    db.add_all([lab_sc1, lab_sc2, lab_sc3])
+    # Scenario 4: Partial Data Match (Only first name and DOB provided, no last name or phone)
+    lab_sc4 = LabResult(
+        specimen_id="LAB-SCENARIO-4",
+        lab_name="Express Care Clinic",
+        raw_demographics={
+            "first_name": "Rahul",
+            "last_name": None,
+            "dob": "1988-04-12",
+            "gender": None,
+            "phone": None,
+            "address": None,
+        },
+        result_data={"test_name": "Basic Metabolic Panel (BMP)", "status": "Pending"},
+    )
+
+    db.add_all([lab_sc1, lab_sc2, lab_sc3, lab_sc4])
 
     # Add 7 extra lab results with realistic noise
     sample_patients = db.query(Patient).limit(7).all()
