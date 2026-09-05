@@ -245,7 +245,7 @@ export default function App() {
       <header className="app-header">
         <div className="header-brand">
           <div className="brand-badge">
-            <span className="shield-icon">🛡️</span>
+            <span className="brand-mark" aria-hidden="true">SM</span>
             <span>CLINICAL IDENTITY RESOLUTION</span>
           </div>
           <h1>SpecimenMatch</h1>
@@ -260,45 +260,48 @@ export default function App() {
             disabled={loading || resolving || benchmarkRunning}
             title="Reset database to clean test state"
           >
-            🔄 Reset Seed Data
+            Reset demo data
           </button>
           <button
             className="btn btn-primary"
             onClick={handleRunAllBenchmark}
             disabled={loading || resolving || benchmarkRunning}
           >
-            {benchmarkRunning ? '⚡ Evaluating Benchmark…' : '⚡ Run PRD Benchmark'}
+            {benchmarkRunning ? 'Evaluating benchmark…' : 'Run PRD benchmark'}
           </button>
         </div>
       </header>
 
       {/* Safety Policy Notice */}
       <div className="safety-guarantee-banner">
-        <div className="safety-icon">⚖️</div>
         <div>
-          <strong>Strict Clinical Safety Protocol:</strong> In an external reference lab, attributing a specimen to the wrong patient is a catastrophic medical error. The matching engine adheres to a <em>fail-closed</em> policy: when demographic inconsistency or near-identical candidates create genuine ambiguity, it explicitly triggers <code>REVIEW_REQUIRED</code> rather than guessing.
+          <span className="policy-label">Safety policy</span>
+          <strong>Fail-closed identity resolution.</strong> When demographic inconsistency or near-identical candidates create ambiguity, the system returns <code>REVIEW_REQUIRED</code> rather than assigning a patient.
         </div>
       </div>
 
       {/* Alerts */}
       {error && (
         <div className="alert alert-error" role="alert">
-          <span>⚠️ {error}</span>
-          <button onClick={() => setError('')} className="btn-close">×</button>
+          <span><strong>Action required:</strong> {error}</span>
+          <button onClick={() => setError('')} className="btn-close" aria-label="Dismiss message">Dismiss</button>
         </div>
       )}
       {successMsg && (
         <div className="alert alert-success" role="status">
-          <span>✅ {successMsg}</span>
-          <button onClick={() => setSuccessMsg('')} className="btn-close">×</button>
+          <span><strong>Complete:</strong> {successMsg}</span>
+          <button onClick={() => setSuccessMsg('')} className="btn-close" aria-label="Dismiss message">Dismiss</button>
         </div>
       )}
 
       {/* PRD Benchmark Scenarios Cards */}
       <section className="scenarios-section">
         <div className="section-title-wrap">
-          <h2>PRD Target Benchmark Scenarios</h2>
-          <span className="badge-pill">Click a scenario to execute instant resolution</span>
+          <div>
+            <span className="section-kicker">Validation suite</span>
+            <h2>Benchmark scenarios</h2>
+          </div>
+          <span className="badge-pill">Four controlled test cases</span>
         </div>
         <div className="scenarios-grid">
           {SCENARIOS.map((sc) => {
@@ -316,7 +319,8 @@ export default function App() {
                 <h3>{sc.title}</h3>
                 <p className="scenario-desc">{sc.desc}</p>
                 <div className="scenario-goal">
-                  <strong>Verification:</strong> {sc.goal}
+                  <span>Expected behaviour</span>
+                  <strong>{sc.goal}</strong>
                 </div>
                 <button
                   className="scenario-btn"
@@ -326,7 +330,7 @@ export default function App() {
                     handleSelectScenario(sc.id)
                   }}
                 >
-                  {isSelected && resolving ? 'Resolving…' : isSelected ? '✓ Active Scenario' : 'Run Scenario →'}
+                  {isSelected && resolving ? 'Resolving…' : isSelected ? 'Current selection' : 'Run scenario'}
                 </button>
               </div>
             )
@@ -430,7 +434,7 @@ export default function App() {
                       disabled={!selectedId || resolving || loading}
                       onClick={() => handleResolve(selectedId)}
                     >
-                      {resolving ? 'Running Matching Engine…' : '⚡ Resolve Identity'}
+                      {resolving ? 'Running matching engine…' : 'Resolve identity'}
                     </button>
                   </div>
                 ) : (
@@ -579,7 +583,7 @@ export default function App() {
                 const count = patients.filter(p => p.hospital_id === h.hospital_id).length
                 return (
                   <div key={h.hospital_id} className="hospital-row">
-                    <span className="hospital-icon">🏥</span>
+                    <span className="hospital-icon">{String(hospitals.indexOf(h) + 1).padStart(2, '0')}</span>
                     <div className="hospital-info">
                       <strong>{h.hospital_name}</strong>
                       <small>{count} registered patients in system</small>
@@ -601,9 +605,9 @@ export default function App() {
                   <span className="banner-eyebrow">RESOLUTION ENGINE VERDICT</span>
                   <div className="verdict-row">
                     <span className={`outcome-badge outcome-${result.outcome.toLowerCase()}`}>
-                      {result.outcome === 'MATCH' && '✓ MATCH ESTABLISHED'}
-                      {result.outcome === 'REVIEW_REQUIRED' && '⚠️ CLINICAL REVIEW REQUIRED'}
-                      {result.outcome === 'NO_MATCH' && '✕ NO MATCH FOUND'}
+                      {result.outcome === 'MATCH' && 'Match established'}
+                      {result.outcome === 'REVIEW_REQUIRED' && 'Clinical review required'}
+                      {result.outcome === 'NO_MATCH' && 'No match found'}
                     </span>
                     <span className="timestamp">
                       {new Date(result.resolved_at).toLocaleTimeString()}
@@ -629,13 +633,9 @@ export default function App() {
 
               {/* Clinical Narrative Explanation */}
               <div className="decision-narrative">
-                <div className="narrative-icon">
-                  {result.outcome === 'MATCH' && '🛡️'}
-                  {result.outcome === 'REVIEW_REQUIRED' && '🚨'}
-                  {result.outcome === 'NO_MATCH' && 'ℹ️'}
-                </div>
                 <div>
-                  <strong>Decision Rationale:</strong> {result.decision_reason}
+                  <span className="narrative-label">Decision rationale</span>
+                  <strong>{result.decision_reason}</strong>
                   {result.outcome === 'REVIEW_REQUIRED' && (
                     <p className="sub-narrative">
                       <strong>Safety Protocol Invoked:</strong> The margin between top candidates ({score(result.score_margin)}) is below the required safety separation threshold (15.0%). To prevent misattributed diagnostic delivery, this specimen is queued for manual clinical verification.
@@ -649,7 +649,7 @@ export default function App() {
                 <div className="matched-patient-box">
                   <div className="matched-title">
                     <span>Assigned Patient Record</span>
-                    <span className="verified-badge">✓ Verified Match</span>
+                    <span className="verified-badge">Verified match</span>
                   </div>
                   <div className="patient-details-grid">
                     <div>
@@ -793,7 +793,7 @@ export default function App() {
           ) : (
             <div className="card resolution-placeholder">
               <div className="placeholder-content">
-                <span className="placeholder-icon">🔬</span>
+                <span className="placeholder-eyebrow">Resolution workspace</span>
                 <h3>Identity Resolution Engine Idle</h3>
                 <p>
                   Select a specimen on the left or launch one of the target PRD benchmark scenarios above to initiate real-time matching and view clinical evidence.
