@@ -21,19 +21,32 @@ def normalize_dob(dob: Optional[str]) -> Optional[str]:
         return None
     dob = str(dob).strip()
     
-    # Try parsing common formats
+    # Try parsing common formats (order matters: most specific first)
     formats = [
-        "%Y-%m-%d", "%d-%m-%Y", "%m-%d-%Y",
-        "%Y/%m/%d", "%d/%m/%Y", "%m/%d/%Y"
+        "%Y-%m-%d",   # 1988-04-12
+        "%Y/%m/%d",   # 1988/04/12
+        "%Y/%d/%m",   # 1988/12/04  <-- YYYY/DD/MM
+        "%d-%m-%Y",   # 12-04-1988
+        "%m-%d-%Y",   # 04-12-1988
+        "%d/%m/%Y",   # 12/04/1988
+        "%m/%d/%Y",   # 04/12/1988
+        "%d.%m.%Y",   # 12.04.1988
+        "%Y.%m.%d",   # 1988.04.12
+        "%d %b %Y",   # 12 Apr 1988
+        "%d %B %Y",   # 12 April 1988
+        "%b %d, %Y",  # Apr 12, 1988
+        "%B %d, %Y",  # April 12, 1988
     ]
     for fmt in formats:
         try:
             parsed = datetime.strptime(dob, fmt)
-            return parsed.strftime("%Y-%m-%d")
+            # Sanity check: year must be realistic (1900–2100)
+            if 1900 <= parsed.year <= 2100:
+                return parsed.strftime("%Y-%m-%d")
         except ValueError:
             continue
     
-    # If parsing fails, just return the original (safely preserve invalid values)
+    # If parsing fails, return original (safely preserve for logging)
     return dob
 
 

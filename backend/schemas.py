@@ -45,7 +45,7 @@ class LabResultDemographics(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     middle_name: Optional[str] = None
-    date_of_birth: Optional[str] = None  # any format: DD-MM-YYYY, YYYY-MM-DD, etc.
+    dob: Optional[str] = None  # any format: DD-MM-YYYY, YYYY-MM-DD, etc.
     gender: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None

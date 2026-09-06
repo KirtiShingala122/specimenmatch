@@ -21,7 +21,7 @@ def score_candidate(lab_demographics: Dict[str, Any], candidate: Patient) -> Tup
     # 1. Normalize lab demographics
     lab_fname = normalizer.normalize_name(lab_demographics.get("first_name"))
     lab_lname = normalizer.normalize_name(lab_demographics.get("last_name"))
-    lab_dob = normalizer.normalize_dob(lab_demographics.get("dob"))
+    lab_dob = normalizer.normalize_dob(lab_demographics.get("dob") or lab_demographics.get("date_of_birth"))
     lab_gender = normalizer.normalize_gender(lab_demographics.get("gender"))
     lab_phone = normalizer.normalize_phone(lab_demographics.get("phone"))
     lab_address = normalizer.normalize_address(lab_demographics.get("address"))
