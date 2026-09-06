@@ -76,7 +76,10 @@ def reset_and_seed_db(session: Session = None):
         state="Delhi",
         zip_code="110001",
     )
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
     db.add_all([rahul, priya1, priya2])
 
     # 3. Generate ~35 Random Synthetic Patients
