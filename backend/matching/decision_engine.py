@@ -56,8 +56,18 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
 
     candidate_count = len(scored_candidates)
 
+    # Gather normalized demographics for UI proof
+    normalized_input = {
+        "first_name": normalizer.normalize_name(raw_demographics.get("first_name")),
+        "last_name": norm_lname,
+        "dob": norm_dob,
+        "gender": normalizer.normalize_gender(raw_demographics.get("gender")),
+        "phone": norm_phone,
+        "address": normalizer.normalize_address(raw_demographics.get("address"))
+    }
+
     # Build rich evidence breakdown adhering to EvidenceBreakdown schema
-    evidence_breakdown = _format_evidence_breakdown(best_match, scored_candidates)
+    evidence_breakdown = _format_evidence_breakdown(best_match, scored_candidates, normalized_input)
 
     # 4. Evaluate Safety Rules
     # Rule A: Weak / No Evidence
@@ -138,9 +148,9 @@ def resolve_identity(db_session: Session, raw_demographics: Dict[str, Any]) -> d
     )
 
 
-def _format_evidence_breakdown(best_match: Optional[dict], scored_candidates: List[dict]) -> dict:
+def _format_evidence_breakdown(best_match: Optional[dict], scored_candidates: List[dict], normalized_input: dict = None) -> dict:
     if not best_match:
-        return {"fields": {}, "top_candidates": []}
+        return {"fields": {}, "top_candidates": [], "normalized_input": normalized_input or {}}
 
     fields_evidence = {}
     for field, fscore in best_match["field_scores"].items():
@@ -175,7 +185,8 @@ def _format_evidence_breakdown(best_match: Optional[dict], scored_candidates: Li
 
     return {
         "fields": fields_evidence,
-        "top_candidates": top_candidates
+        "top_candidates": top_candidates,
+        "normalized_input": normalized_input or {}
     }
 
 

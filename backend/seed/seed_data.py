@@ -91,8 +91,21 @@ def reset_and_seed_db(session: Session = None):
         state="Delhi",
         zip_code="110001",
     )
+    kirti = Patient(
+        hospital_id=apex_hosp.hospital_id,
+        mrn="APEX-PAT-3001",
+        first_name="Kirti",
+        last_name="Shingala",
+        date_of_birth=date(1988, 4, 12),
+        gender=GenderEnum.M,
+        phone="123456",
+        address_line1="Park Street",
+        city="Mumbai",
+        state="Maharashtra",
+        zip_code="400001",
+    )
 
-    db.add_all([rahul, priya1, priya2])
+    db.add_all([rahul, priya1, priya2, kirti])
 
     # 3. Generate ~35 Random Synthetic Patients
     genders = [GenderEnum.M, GenderEnum.F, GenderEnum.OTHER]

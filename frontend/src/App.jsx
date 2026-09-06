@@ -63,6 +63,7 @@ export default function App() {
   const [resolving, setResolving] = useState(false)
   const [activeTab, setActiveTab] = useState('select')
   const [benchmarkRunning, setBenchmarkRunning] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Custom specimen form state
   const [customForm, setCustomForm] = useState({
@@ -106,6 +107,17 @@ export default function App() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (selectedId) {
+      const selected = labs.find(l => l.lab_result_id === selectedId)
+      if (selected) {
+        setSearchQuery(`${selected.specimen_id} — ${selected.raw_demographics?.first_name || ''} ${selected.raw_demographics?.last_name || ''} (${selected.lab_name})`)
+      }
+    } else {
+      setSearchQuery('')
+    }
+  }, [selectedId, labs])
 
   const handleResolve = async (labResultIdToResolve = selectedId) => {
     if (!labResultIdToResolve) return
@@ -212,11 +224,16 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      setLabs([newLab, ...labs])
-      setSelectedId(newLab.lab_result_id)
-      setActiveTab('select')
-      await handleResolve(newLab.lab_result_id)
-      setSuccessMsg(`Custom lab result ${newLab.specimen_id} created and resolved!`)
+      setLabs(prev => [newLab, ...prev])
+      // Resolve the custom lab and show result WITHOUT switching tab or changing selected specimen
+      const decision = await api('/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lab_result_id: newLab.lab_result_id, triggered_by: 'manual' })
+      })
+      setResult(decision)
+      setDecisions(prev => [decision, ...prev.filter(d => d.decision_id !== decision.decision_id)])
+      setSuccessMsg(`Custom specimen ${newLab.specimen_id} resolved! See decision on the right panel.`)
       // regenerate next ID
       setCustomForm(prev => ({
         ...prev,
@@ -364,22 +381,31 @@ export default function App() {
             {activeTab === 'select' ? (
               <div className="card-body">
                 <label className="field-label">
-                  Choose Specimen to Resolve:
-                  <select
+                  Search & Select Specimen:
+                  <input
+                    type="text"
+                    list="labs-list"
                     className="select-input"
-                    value={selectedId}
+                    placeholder="Type name, ID, or lab..."
+                    value={searchQuery}
                     onChange={(e) => {
-                      setSelectedId(e.target.value)
-                      setResult(null)
+                      setSearchQuery(e.target.value)
+                      const selected = labs.find(item => 
+                        `${item.specimen_id} — ${item.raw_demographics?.first_name || ''} ${item.raw_demographics?.last_name || ''} (${item.lab_name})` === e.target.value
+                      )
+                      if (selected) {
+                        setSelectedId(selected.lab_result_id)
+                        setResult(null)
+                      } else {
+                        setSelectedId('')
+                      }
                     }}
-                  >
-                    <option value="">-- Choose Specimen --</option>
+                  />
+                  <datalist id="labs-list">
                     {labs.map((item) => (
-                      <option key={item.lab_result_id} value={item.lab_result_id}>
-                        {item.specimen_id} — {item.raw_demographics?.first_name} {item.raw_demographics?.last_name} ({item.lab_name})
-                      </option>
+                      <option key={item.lab_result_id} value={`${item.specimen_id} — ${item.raw_demographics?.first_name || ''} ${item.raw_demographics?.last_name || ''} (${item.lab_name})`} />
                     ))}
-                  </select>
+                  </datalist>
                 </label>
 
                 {selectedLab ? (
@@ -734,8 +760,46 @@ export default function App() {
                 </div>
               )}
 
+              {/* Engine Normalization Pipeline */}
+              {result.evidence_breakdown?.normalized_input && Object.keys(result.evidence_breakdown.normalized_input).length > 0 && (
+                <div className="normalization-section" style={{ marginTop: '24px', borderTop: '1px solid #e4e9f0', paddingTop: '16px' }}>
+                  <h3>Engine Normalization Pipeline</h3>
+                  <p className="hint-text" style={{ fontSize: '0.85rem', color: '#607086', marginBottom: '12px' }}>
+                    Mathematical cleaning applied to incoming text before fuzzy matching:
+                  </p>
+                  <table className="evidence-table">
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Raw Input</th>
+                        <th>Normalized Output</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(result.evidence_breakdown.normalized_input).map(([fieldName, normVal]) => {
+                        const rawVal = selectedLab?.raw_demographics?.[fieldName] || selectedLab?.raw_demographics?.[fieldName === 'dob' ? 'date_of_birth' : ''] || '—'
+                        const isChanged = rawVal !== '—' && normVal && rawVal !== normVal
+                        return (
+                          <tr key={fieldName}>
+                            <td><strong>{label(fieldName)}</strong></td>
+                            <td style={{ color: '#526174' }}>{rawVal}</td>
+                            <td>
+                              {isChanged ? (
+                                <span style={{ color: '#12613d', fontWeight: 'bold' }}>→ {normVal}</span>
+                              ) : (
+                                <span style={{ color: '#526174' }}>{normVal || '—'}</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               {/* Field-by-Field Evidence Breakdown */}
-              <div className="evidence-section">
+              <div className="evidence-section" style={{ marginTop: '24px' }}>
                 <h3>Field-Level Evidence Breakdown</h3>
                 {result.evidence_breakdown?.fields && Object.keys(result.evidence_breakdown.fields).length > 0 ? (
                   <table className="evidence-table">
